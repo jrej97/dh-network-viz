@@ -185,15 +185,20 @@ async def main() -> None:
             ui.label("Crime Network Graph").classes("text-lg font-semibold")
             elements = build_elements(state["nodes"], state["edges"])
             ui.html(
-                f"""
+                """
                 <div style="position: relative;">
                     <div id="cy"></div>
                     <div id="cy-tooltip"></div>
                 </div>
+                """
+            )
+            elements_json = json.dumps(elements)
+            ui.add_body_html(
+                f"""
                 <script>
                     const cy = window.cy = cytoscape({{
                         container: document.getElementById('cy'),
-                        elements: {json.dumps(elements)},
+                        elements: {elements_json},
                         style: [
                             {{
                                 selector: 'node',
