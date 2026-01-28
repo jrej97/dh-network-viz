@@ -41,6 +41,7 @@ def build_elements(nodes_df: pd.DataFrame, edges_df: pd.DataFrame) -> list[dict]
                     "target": target,
                     "relationship_type": str(row["relationship_type"]),
                     "description": str(row["description"]),
+                    "row_index": int(index),
                 }
             }
         )

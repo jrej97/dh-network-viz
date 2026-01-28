@@ -17,9 +17,9 @@ python app/main.py
 NiceGUI prints the local URL (default `http://localhost:8080`). Open it in a browser to use the editor.
 
 ## Key Features
-- Left sidebar filters, search, and export actions.
+- Left sidebar filters (node type + relationship), search, and export actions.
 - Cytoscape.js force-directed graph with custom icons and tooltips.
-- Editable tables for nodes and edges (NiceGUI aggrid).
+- Editable tables for nodes and edges (NiceGUI aggrid) plus inspector edit/delete controls.
 - Validation for node IDs and edge references.
 - Export to `exports/nodes.csv`, `exports/edges.csv`, and `exports/graph.gexf`.
 
