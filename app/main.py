@@ -5,7 +5,15 @@ from pathlib import Path
 
 from nicegui import app, ui
 
-from data_io import export_data, load_data, rows_to_dataframes, save_data, validate_data
+from data_io import (
+    EDGE_COLUMNS,
+    NODE_COLUMNS,
+    export_data,
+    load_data,
+    rows_to_dataframes,
+    save_data,
+    validate_data,
+)
 from graph_utils import build_elements
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -56,12 +64,23 @@ ui.add_head_html(
 
 @ui.page("/")
 async def main() -> None:
-    nodes_df, edges_df = load_data(DATA_PATH)
+    try:
+        nodes_df, edges_df = load_data(DATA_PATH)
+    except Exception as exc:
+        ui.label("Unable to load the Excel workbook.").classes("text-lg font-semibold")
+        ui.label(str(exc)).classes("text-red-600")
+        ui.label(
+            "Check that data/data.xlsx exists and contains 'nodes' and 'edges' sheets with required columns."
+        )
+        return
 
     state = {
         "nodes": nodes_df,
         "edges": edges_df,
     }
+
+    node_columns = state["nodes"].columns.tolist()
+    edge_columns = state["edges"].columns.tolist()
 
     async def refresh_graph() -> None:
         elements = build_elements(state["nodes"], state["edges"])
@@ -74,9 +93,19 @@ async def main() -> None:
         edges_rows = await edges_grid.get_row_data()
         return nodes_rows or [], edges_rows or []
 
+    async def sync_state_from_grids() -> None:
+        nodes_rows, edges_rows = await collect_grid_data()
+        nodes_df_new, edges_df_new = rows_to_dataframes(
+            nodes_rows, edges_rows, node_columns, edge_columns
+        )
+        state["nodes"] = nodes_df_new
+        state["edges"] = edges_df_new
+
     async def on_save() -> None:
         nodes_rows, edges_rows = await collect_grid_data()
-        nodes_df_new, edges_df_new = rows_to_dataframes(nodes_rows, edges_rows)
+        nodes_df_new, edges_df_new = rows_to_dataframes(
+            nodes_rows, edges_rows, node_columns, edge_columns
+        )
         errors = validate_data(nodes_df_new, edges_df_new)
         if errors:
             ui.notify("Validation failed: " + " ".join(errors), color="negative")
@@ -89,7 +118,9 @@ async def main() -> None:
 
     async def on_export() -> None:
         nodes_rows, edges_rows = await collect_grid_data()
-        nodes_df_new, edges_df_new = rows_to_dataframes(nodes_rows, edges_rows)
+        nodes_df_new, edges_df_new = rows_to_dataframes(
+            nodes_rows, edges_rows, node_columns, edge_columns
+        )
         errors = validate_data(nodes_df_new, edges_df_new)
         if errors:
             ui.notify("Validation failed: " + " ".join(errors), color="negative")
@@ -104,13 +135,24 @@ async def main() -> None:
 
     async def apply_filters() -> None:
         await ui.run_javascript(
-            "applyFilters(%s, %s)" % (json.dumps(search_input.value), json.dumps(type_filter.value))
+            "applyFilters(%s, %s, %s)"
+            % (
+                json.dumps(search_input.value),
+                json.dumps(type_filter.value),
+                json.dumps(relationship_filter.value),
+            )
         )
 
     async def reset_filters() -> None:
         search_input.value = ""
         type_filter.value = []
+        relationship_filter.value = []
         await ui.run_javascript("resetFilters()")
+
+    async def set_grid_rows(grid, rows: list[dict]) -> None:
+        await grid.call_api_method("setRowData", rows)
+
+    current_selection: dict[str, dict] = {}
 
     with ui.row().classes("w-full gap-6"):
         with ui.column().classes("w-1/5 gap-4"):
@@ -120,6 +162,17 @@ async def main() -> None:
                 type_filter = ui.select(
                     ["Person", "Place", "Institution", "Group"],
                     label="Filter by type",
+                    multiple=True,
+                )
+                relationship_filter = ui.select(
+                    sorted(
+                        {
+                            value
+                            for value in state["edges"]["relationship_type"].astype(str).tolist()
+                            if value
+                        }
+                    ),
+                    label="Filter by relationship",
                     multiple=True,
                 )
                 ui.button("Apply Filters", on_click=apply_filters)
@@ -193,6 +246,19 @@ async def main() -> None:
                     cy.on('mouseout', 'node', () => {{
                         tooltip.style.display = 'none';
                     }});
+                    cy.on('mouseover', 'edge', (event) => {{
+                        const edge = event.target;
+                        const relationship = edge.data('relationship_type');
+                        const description = edge.data('description');
+                        if (!relationship && !description) return;
+                        tooltip.textContent = [relationship, description].filter(Boolean).join(': ');
+                        tooltip.style.display = 'block';
+                        tooltip.style.left = `${{event.renderedPosition.x + 12}}px`;
+                        tooltip.style.top = `${{event.renderedPosition.y + 12}}px`;
+                    }});
+                    cy.on('mouseout', 'edge', () => {{
+                        tooltip.style.display = 'none';
+                    }});
                     cy.on('tap', 'node', (event) => {{
                         const node = event.target;
                         window.dispatchEvent(new CustomEvent('cy_selected', {{
@@ -218,18 +284,38 @@ async def main() -> None:
                         }}).run();
                     }};
 
-                    window.applyFilters = (query, types) => {{
+                    window.applyFilters = (query, types, relationships) => {{
                         const normalizedQuery = (query || '').toLowerCase();
                         const typeSet = new Set((types || []).map((value) => value.toLowerCase()));
+                        const relationSet = new Set((relationships || []).map((value) => value.toLowerCase()));
                         cy.nodes().forEach((node) => {{
-                            const matchesQuery = node.data('label').toLowerCase().includes(normalizedQuery);
-                            const matchesType = typeSet.size === 0 || typeSet.has(node.data('type').toLowerCase());
+                            const label = (node.data('label') || '').toLowerCase();
+                            const nodeType = (node.data('type') || '').toLowerCase();
+                            const matchesQuery = label.includes(normalizedQuery);
+                            const matchesType = typeSet.size === 0 || typeSet.has(nodeType);
                             node.style('display', matchesQuery && matchesType ? 'element' : 'none');
                         }});
                         cy.edges().forEach((edge) => {{
                             const sourceVisible = edge.source().style('display') !== 'none';
                             const targetVisible = edge.target().style('display') !== 'none';
-                            edge.style('display', sourceVisible && targetVisible ? 'element' : 'none');
+                            const relationship = (edge.data('relationship_type') || '').toLowerCase();
+                            const matchesRelation =
+                                relationSet.size === 0 || relationSet.has(relationship);
+                            edge.style(
+                                'display',
+                                sourceVisible && targetVisible && matchesRelation ? 'element' : 'none'
+                            );
+                        }});
+                        if (relationSet.size > 0) {{
+                            cy.nodes().forEach((node) => {{
+                                const connectedVisible =
+                                    node.connectedEdges().filter(
+                                        (edge) => edge.style('display') !== 'none'
+                                    ).length > 0;
+                                if (!connectedVisible) {{
+                                    node.style('display', 'none');
+                                }}
+                            }});
                         }});
                     }};
 
@@ -241,23 +327,25 @@ async def main() -> None:
                 """
             )
 
+            def build_column_defs(columns: list[str], core_columns: list[str]) -> list[dict]:
+                defs: list[dict] = []
+                for column in columns:
+                    header_name = column.replace("_", " ").title()
+                    column_def: dict = {"headerName": header_name, "field": column, "editable": True}
+                    if column == "type":
+                        column_def["cellEditor"] = "agSelectCellEditor"
+                        column_def["cellEditorParams"] = {
+                            "values": ["Person", "Place", "Institution", "Group"]
+                        }
+                    if column not in core_columns:
+                        column_def["hide"] = True
+                    defs.append(column_def)
+                return defs
+
             with ui.expansion("Edit Nodes", icon="edit"):
                 nodes_grid = ui.aggrid(
                     {
-                        "columnDefs": [
-                            {"headerName": "ID", "field": "id", "editable": True},
-                            {"headerName": "Label", "field": "label", "editable": True},
-                            {
-                                "headerName": "Type",
-                                "field": "type",
-                                "editable": True,
-                                "cellEditor": "agSelectCellEditor",
-                                "cellEditorParams": {
-                                    "values": ["Person", "Place", "Institution", "Group"]
-                                },
-                            },
-                            {"headerName": "Description", "field": "description", "editable": True},
-                        ],
+                        "columnDefs": build_column_defs(node_columns, NODE_COLUMNS),
                         "rowData": state["nodes"].to_dict(orient="records"),
                         "defaultColDef": {"flex": 1, "resizable": True},
                         "stopEditingWhenCellsLoseFocus": True,
@@ -267,16 +355,7 @@ async def main() -> None:
             with ui.expansion("Edit Edges", icon="edit"):
                 edges_grid = ui.aggrid(
                     {
-                        "columnDefs": [
-                            {"headerName": "Source", "field": "source", "editable": True},
-                            {"headerName": "Target", "field": "target", "editable": True},
-                            {
-                                "headerName": "Relationship",
-                                "field": "relationship_type",
-                                "editable": True,
-                            },
-                            {"headerName": "Description", "field": "description", "editable": True},
-                        ],
+                        "columnDefs": build_column_defs(edge_columns, EDGE_COLUMNS),
                         "rowData": state["edges"].to_dict(orient="records"),
                         "defaultColDef": {"flex": 1, "resizable": True},
                         "stopEditingWhenCellsLoseFocus": True,
@@ -289,6 +368,9 @@ async def main() -> None:
                 inspector_title = ui.label("Select a node or edge")
                 inspector_type = ui.label("Type: -")
                 inspector_meta = ui.label("Details: -")
+                with ui.row().classes("gap-2"):
+                    edit_button = ui.button("Edit").props("outline")
+                    delete_button = ui.button("Delete").props("outline color=negative")
 
     def handle_selection(event) -> None:
         detail = event.args
@@ -296,6 +378,8 @@ async def main() -> None:
             return
         kind = detail.get("kind")
         data = detail.get("data", {})
+        current_selection.clear()
+        current_selection.update({"kind": kind, "data": data})
         if kind == "node":
             inspector_title.text = data.get("label", "Node")
             inspector_type.text = f"Type: {data.get('type', '-') }"
@@ -306,6 +390,135 @@ async def main() -> None:
             inspector_meta.text = data.get("description") or "No description"
 
     ui.on("cy_selected", handle_selection)
+
+    async def on_edit() -> None:
+        if not current_selection:
+            ui.notify("Select a node or edge first.", color="warning")
+            return
+        kind = current_selection.get("kind")
+        data = current_selection.get("data", {})
+        with ui.dialog() as dialog, ui.card():
+            ui.label(f"Edit {kind}")
+            if kind == "node":
+                id_input = ui.input("ID", value=data.get("id", ""))
+                label_input = ui.input("Label", value=data.get("label", ""))
+                type_input = ui.select(
+                    ["Person", "Place", "Institution", "Group"],
+                    value=data.get("type", ""),
+                    label="Type",
+                )
+                desc_input = ui.input("Description", value=data.get("description", ""))
+
+                async def save_node() -> None:
+                    nodes_rows = await nodes_grid.get_row_data()
+                    edges_rows = await edges_grid.get_row_data()
+                    for row in nodes_rows:
+                        if str(row.get("id")) == str(data.get("id")):
+                            old_id = str(row.get("id"))
+                            new_id = id_input.value
+                            row["id"] = new_id
+                            row["label"] = label_input.value
+                            row["type"] = type_input.value
+                            row["description"] = desc_input.value
+                            if old_id != new_id:
+                                for edge_row in edges_rows:
+                                    if str(edge_row.get("source")) == old_id:
+                                        edge_row["source"] = new_id
+                                    if str(edge_row.get("target")) == old_id:
+                                        edge_row["target"] = new_id
+                            break
+                    await set_grid_rows(nodes_grid, nodes_rows)
+                    await set_grid_rows(edges_grid, edges_rows)
+                    await sync_state_from_grids()
+                    await refresh_graph()
+                    dialog.close()
+
+                ui.button("Save", on_click=save_node)
+            elif kind == "edge":
+                source_input = ui.input("Source", value=data.get("source", ""))
+                target_input = ui.input("Target", value=data.get("target", ""))
+                relation_input = ui.input(
+                    "Relationship", value=data.get("relationship_type", "")
+                )
+                desc_input = ui.input("Description", value=data.get("description", ""))
+
+                async def save_edge() -> None:
+                    edges_rows = await edges_grid.get_row_data()
+                    updated = False
+                    for row in edges_rows:
+                        if (
+                            str(row.get("source")) == str(data.get("source"))
+                            and str(row.get("target")) == str(data.get("target"))
+                            and str(row.get("relationship_type"))
+                            == str(data.get("relationship_type"))
+                            and str(row.get("description")) == str(data.get("description"))
+                        ):
+                            row["source"] = source_input.value
+                            row["target"] = target_input.value
+                            row["relationship_type"] = relation_input.value
+                            row["description"] = desc_input.value
+                            updated = True
+                            break
+                    if not updated and "row_index" in data:
+                        index = int(data["row_index"])
+                        if 0 <= index < len(edges_rows):
+                            edges_rows[index]["source"] = source_input.value
+                            edges_rows[index]["target"] = target_input.value
+                            edges_rows[index]["relationship_type"] = relation_input.value
+                            edges_rows[index]["description"] = desc_input.value
+                    await set_grid_rows(edges_grid, edges_rows)
+                    await sync_state_from_grids()
+                    await refresh_graph()
+                    dialog.close()
+
+                ui.button("Save", on_click=save_edge)
+            ui.button("Cancel", on_click=dialog.close).props("outline")
+
+        dialog.open()
+
+    async def on_delete() -> None:
+        if not current_selection:
+            ui.notify("Select a node or edge first.", color="warning")
+            return
+        kind = current_selection.get("kind")
+        data = current_selection.get("data", {})
+        if kind == "node":
+            nodes_rows = await nodes_grid.get_row_data()
+            node_id = str(data.get("id"))
+            nodes_rows = [row for row in nodes_rows if str(row.get("id")) != node_id]
+            edges_rows = await edges_grid.get_row_data()
+            edges_rows = [
+                row
+                for row in edges_rows
+                if str(row.get("source")) != node_id and str(row.get("target")) != node_id
+            ]
+            await set_grid_rows(nodes_grid, nodes_rows)
+            await set_grid_rows(edges_grid, edges_rows)
+        elif kind == "edge":
+            edges_rows = await edges_grid.get_row_data()
+            filtered_rows = [
+                row
+                for row in edges_rows
+                if not (
+                    str(row.get("source")) == str(data.get("source"))
+                    and str(row.get("target")) == str(data.get("target"))
+                    and str(row.get("relationship_type"))
+                    == str(data.get("relationship_type"))
+                    and str(row.get("description")) == str(data.get("description"))
+                )
+            ]
+            if len(filtered_rows) == len(edges_rows) and "row_index" in data:
+                index = int(data["row_index"])
+                if 0 <= index < len(edges_rows):
+                    filtered_rows = [
+                        row for idx, row in enumerate(edges_rows) if idx != index
+                    ]
+            await set_grid_rows(edges_grid, filtered_rows)
+        await sync_state_from_grids()
+        await refresh_graph()
+
+    edit_button.on("click", on_edit)
+    delete_button.on("click", on_delete)
 
 
 ui.run(title="Crime Network Editor", port=8080, reload=False)
