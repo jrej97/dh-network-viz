@@ -8,6 +8,19 @@ This project provides a NiceGUI application for editing and visualizing a crime 
 pip install -r requirements.txt
 ```
 
+### Windows + Python notes
+
+This project pins `pandas==2.2.2`, which does **not** provide wheels for Python 3.14. If you are on Windows and attempt to install with Python 3.14, `pip` will try to compile pandas from source and fail unless you have the Visual Studio C++ build tools installed. The quickest path is to use Python 3.11 or 3.12 in a virtual environment.
+
+```bat
+py install 3.12
+py -3.12 -m venv .venv
+.venv\Scripts\activate
+python -m pip install -r requirements.txt
+```
+
+If you must stay on Python 3.14, install the Visual Studio Build Tools (C++ workload) so pandas can compile from source, but note that 3.14 is pre-release and pandas compatibility may still be incomplete.
+
 ## Run
 
 ```bash
