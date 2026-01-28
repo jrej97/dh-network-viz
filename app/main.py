@@ -154,7 +154,8 @@ async def main() -> None:
     async def refresh_graph() -> None:
         elements = build_elements(state["nodes"], state["edges"])
         await ui.run_javascript(
-            "updateGraph(%s)" % json.dumps(elements)
+            "updateGraph(%s)" % json.dumps(elements),
+            respond=False,
         )
 
     async def collect_grid_data() -> tuple[list[dict], list[dict]]:
@@ -209,14 +210,15 @@ async def main() -> None:
                 json.dumps(search_input.value),
                 json.dumps(type_filter.value),
                 json.dumps(relationship_filter.value),
-            )
+            ),
+            respond=False,
         )
 
     async def reset_filters() -> None:
         search_input.value = ""
         type_filter.value = []
         relationship_filter.value = []
-        await ui.run_javascript("resetFilters()")
+        await ui.run_javascript("resetFilters()", respond=False)
 
     async def set_grid_rows(grid, rows: list[dict]) -> None:
         await grid.call_api_method("setRowData", rows)
