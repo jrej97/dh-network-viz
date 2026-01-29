@@ -24,7 +24,21 @@ app.add_static_files("/assets", BASE_DIR / "assets")
 
 ui.add_head_html(
     """
-    <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+    <script>
+        window.cytoscapeLoad = new Promise((resolve, reject) => {
+            const primary = document.createElement('script');
+            primary.src = 'https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js';
+            primary.onload = () => resolve(true);
+            primary.onerror = () => {
+                const fallback = document.createElement('script');
+                fallback.src = 'https://cdn.jsdelivr.net/npm/cytoscape@3.26.0/dist/cytoscape.min.js';
+                fallback.onload = () => resolve(true);
+                fallback.onerror = () => reject(new Error('Unable to load Cytoscape.js'));
+                document.head.appendChild(fallback);
+            };
+            document.head.appendChild(primary);
+        });
+    </script>
     <style>
         :root {
             --surface: #ffffff;
@@ -39,7 +53,7 @@ ui.add_head_html(
             --danger: #dc2626;
         }
         body {
-            background: var(--surface-muted);
+            background: #1e3a8a;
             color: var(--text-primary);
         }
         .nicegui-content {
@@ -51,6 +65,12 @@ ui.add_head_html(
             border: 1px solid var(--border);
             border-radius: 12px;
             background: var(--surface-strong);
+        }
+        .ag-root-wrapper {
+            min-height: 320px;
+        }
+        .ag-center-cols-viewport {
+            min-height: 320px;
         }
         #cy-tooltip {
             position: absolute;
@@ -70,6 +90,11 @@ ui.add_head_html(
             padding: 18px;
             background: var(--surface);
             box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+        }
+        .ag-theme-balham,
+        .ag-theme-alpine {
+            background: var(--surface);
+            border-radius: 12px;
         }
         .inspector-card {
             border: 1px solid var(--border);
@@ -205,7 +230,7 @@ async def main() -> None:
 
     async def apply_filters() -> None:
         await ui.run_javascript(
-            "applyFilters(%s, %s, %s)"
+            "window.safeApplyFilters(%s, %s, %s)"
             % (
                 json.dumps(search_input.value),
                 json.dumps(type_filter.value),
@@ -475,7 +500,7 @@ async def main() -> None:
                         "defaultColDef": {"flex": 1, "resizable": True},
                         "stopEditingWhenCellsLoseFocus": True,
                     }
-                ).classes("w-full h-64")
+                ).classes("w-full h-96")
 
             with ui.expansion("Edit Edges", icon="edit"):
                 edges_grid = ui.aggrid(
@@ -485,7 +510,7 @@ async def main() -> None:
                         "defaultColDef": {"flex": 1, "resizable": True},
                         "stopEditingWhenCellsLoseFocus": True,
                     }
-                ).classes("w-full h-64")
+                ).classes("w-full h-96")
 
         with ui.column().classes("w-1/5 gap-4"):
             ui.label("Inspector").classes("text-lg font-semibold panel-title")
