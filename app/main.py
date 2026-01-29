@@ -26,25 +26,17 @@ ui.add_head_html(
     """
     <script>
         window.cytoscapeLoad = new Promise((resolve, reject) => {
-            const sources = [
-                '/assets/vendor/cytoscape.min.js',
-                'https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js',
-                'https://cdn.jsdelivr.net/npm/cytoscape@3.26.0/dist/cytoscape.min.js',
-                'https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js',
-            ];
-            const loadNext = () => {
-                if (sources.length === 0) {
-                    reject(new Error('Unable to load Cytoscape.js'));
-                    return;
-                }
-                const src = sources.shift();
-                const script = document.createElement('script');
-                script.src = src;
-                script.onload = () => resolve(true);
-                script.onerror = () => loadNext();
-                document.head.appendChild(script);
+            const primary = document.createElement('script');
+            primary.src = 'https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js';
+            primary.onload = () => resolve(true);
+            primary.onerror = () => {
+                const fallback = document.createElement('script');
+                fallback.src = 'https://cdn.jsdelivr.net/npm/cytoscape@3.26.0/dist/cytoscape.min.js';
+                fallback.onload = () => resolve(true);
+                fallback.onerror = () => reject(new Error('Unable to load Cytoscape.js'));
+                document.head.appendChild(fallback);
             };
-            loadNext();
+            document.head.appendChild(primary);
         });
     </script>
     <style>
@@ -86,6 +78,12 @@ ui.add_head_html(
             background: rgba(248, 250, 252, 0.85);
             border-radius: 12px;
             z-index: 5;
+        }
+        .ag-root-wrapper {
+            min-height: 320px;
+        }
+        .ag-center-cols-viewport {
+            min-height: 320px;
         }
         .ag-root-wrapper {
             min-height: 320px;
@@ -264,7 +262,7 @@ async def main() -> None:
         search_input.value = ""
         type_filter.value = []
         relationship_filter.value = []
-        await ui.run_javascript("window.safeResetFilters()", respond=False)
+        await ui.run_javascript("resetFilters()", respond=False)
 
     async def set_grid_rows(grid, rows: list[dict]) -> None:
         await grid.call_api_method("setRowData", rows)
@@ -331,15 +329,6 @@ async def main() -> None:
                         componentSpacing: 160,
                     }});
 
-                    const runLayout = () => {{
-                        if (!window.cy) return;
-                        const layout = window.cy.layout(buildLayout());
-                        layout.run();
-                        layout.on('layoutstop', () => {{
-                            window.cy.fit(undefined, 40);
-                        }});
-                    }};
-
                     const applyFiltersToGraph = (query, types, relationships) => {{
                         if (!window.cy) return;
                         const normalizedQuery = (query || '').toLowerCase();
@@ -378,24 +367,6 @@ async def main() -> None:
 
                     const initCytoscape = () => {{
                         if (window.cy) return;
-                        const statusEl = document.getElementById('cy-status');
-                        if (window.cytoscapeLoad && !window.cytoscapeLoadHandled) {{
-                            window.cytoscapeLoadHandled = true;
-                            window.cytoscapeLoad.catch(() => {{
-                                const fallbackContainer = document.getElementById('cy');
-                                if (fallbackContainer) {{
-                                    fallbackContainer.innerHTML = `
-                                        <div style="padding: 16px; text-align: center; color: #b91c1c;">
-                                            Unable to load Cytoscape.js. Check network access or allow the CDN.
-                                        </div>
-                                    `;
-                                }}
-                                if (statusEl) {{
-                                    statusEl.textContent =
-                                        'Graph library failed to load. Ensure Cytoscape.js is reachable or add assets/vendor/cytoscape.min.js.';
-                                }}
-                            }});
-                        }}
                         if (typeof cytoscape === 'undefined') {{
                             setTimeout(initCytoscape, 50);
                             return;
@@ -440,13 +411,6 @@ async def main() -> None:
                                 }}
                             ],
                             layout: buildLayout(),
-                        }});
-                        cy.ready(() => {{
-                            cy.resize();
-                            cy.fit(undefined, 40);
-                            if (statusEl) {{
-                                statusEl.style.display = 'none';
-                            }}
                         }});
 
                         const tooltip = document.getElementById('cy-tooltip');
@@ -506,7 +470,7 @@ async def main() -> None:
                         }}
                         window.cy.elements().remove();
                         window.cy.add(elements);
-                        runLayout();
+                        window.cy.layout(buildLayout()).run();
                     }};
 
                     window.applyFilters = (query, types, relationships) => {{
@@ -516,7 +480,6 @@ async def main() -> None:
                             return;
                         }}
                         applyFiltersToGraph(query, types, relationships);
-                        runLayout();
                     }};
 
                     window.resetFilters = () => {{
@@ -527,35 +490,9 @@ async def main() -> None:
                         }}
                         window.cy.nodes().style('display', 'element');
                         window.cy.edges().style('display', 'element');
-                        runLayout();
-                    }};
-
-                    window.safeApplyFilters = (query, types, relationships) => {{
-                        if (typeof window.applyFilters !== 'function') {{
-                            console.error('applyFilters is not ready yet.');
-                            return;
-                        }}
-                        window.applyFilters(query, types, relationships);
-                    }};
-
-                    window.safeResetFilters = () => {{
-                        if (typeof window.resetFilters !== 'function') {{
-                            console.error('resetFilters is not ready yet.');
-                            return;
-                        }}
-                        window.resetFilters();
                     }};
 
                     initCytoscape();
-                    setTimeout(() => {{
-                        if (!window.cy) {{
-                            const statusEl = document.getElementById('cy-status');
-                            if (statusEl) {{
-                                statusEl.textContent =
-                                    'Graph is still loading. If it stays blank, allow a Cytoscape CDN or add assets/vendor/cytoscape.min.js.';
-                            }}
-                        }}
-                    }}, 3000);
                 </script>
                 """
             )
