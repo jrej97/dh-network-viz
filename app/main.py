@@ -243,7 +243,7 @@ async def main() -> None:
         search_input.value = ""
         type_filter.value = []
         relationship_filter.value = []
-        await ui.run_javascript("window.safeResetFilters()", respond=False)
+        await ui.run_javascript("resetFilters()", respond=False)
 
     async def set_grid_rows(grid, rows: list[dict]) -> None:
         await grid.call_api_method("setRowData", rows)
@@ -309,15 +309,6 @@ async def main() -> None:
                         componentSpacing: 160,
                     }});
 
-                    const runLayout = () => {{
-                        if (!window.cy) return;
-                        const layout = window.cy.layout(buildLayout());
-                        layout.run();
-                        layout.on('layoutstop', () => {{
-                            window.cy.fit(undefined, 40);
-                        }});
-                    }};
-
                     const applyFiltersToGraph = (query, types, relationships) => {{
                         if (!window.cy) return;
                         const normalizedQuery = (query || '').toLowerCase();
@@ -356,19 +347,6 @@ async def main() -> None:
 
                     const initCytoscape = () => {{
                         if (window.cy) return;
-                        if (window.cytoscapeLoad && !window.cytoscapeLoadHandled) {{
-                            window.cytoscapeLoadHandled = true;
-                            window.cytoscapeLoad.catch(() => {{
-                                const fallbackContainer = document.getElementById('cy');
-                                if (fallbackContainer) {{
-                                    fallbackContainer.innerHTML = `
-                                        <div style="padding: 16px; text-align: center; color: #b91c1c;">
-                                            Unable to load Cytoscape.js. Check network access or allow the CDN.
-                                        </div>
-                                    `;
-                                }}
-                            }});
-                        }}
                         if (typeof cytoscape === 'undefined') {{
                             setTimeout(initCytoscape, 50);
                             return;
@@ -413,10 +391,6 @@ async def main() -> None:
                                 }}
                             ],
                             layout: buildLayout(),
-                        }});
-                        cy.ready(() => {{
-                            cy.resize();
-                            cy.fit(undefined, 40);
                         }});
 
                         const tooltip = document.getElementById('cy-tooltip');
@@ -476,7 +450,7 @@ async def main() -> None:
                         }}
                         window.cy.elements().remove();
                         window.cy.add(elements);
-                        runLayout();
+                        window.cy.layout(buildLayout()).run();
                     }};
 
                     window.applyFilters = (query, types, relationships) => {{
@@ -486,7 +460,6 @@ async def main() -> None:
                             return;
                         }}
                         applyFiltersToGraph(query, types, relationships);
-                        runLayout();
                     }};
 
                     window.resetFilters = () => {{
@@ -497,23 +470,6 @@ async def main() -> None:
                         }}
                         window.cy.nodes().style('display', 'element');
                         window.cy.edges().style('display', 'element');
-                        runLayout();
-                    }};
-
-                    window.safeApplyFilters = (query, types, relationships) => {{
-                        if (typeof window.applyFilters !== 'function') {{
-                            console.error('applyFilters is not ready yet.');
-                            return;
-                        }}
-                        window.applyFilters(query, types, relationships);
-                    }};
-
-                    window.safeResetFilters = () => {{
-                        if (typeof window.resetFilters !== 'function') {{
-                            console.error('resetFilters is not ready yet.');
-                            return;
-                        }}
-                        window.resetFilters();
                     }};
 
                     initCytoscape();
