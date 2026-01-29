@@ -29,6 +29,16 @@ python app/main.py
 
 NiceGUI prints the local URL (default `http://localhost:8080`). Open it in a browser to use the editor.
 
+### Offline / blocked CDN setup
+
+If your network blocks CDNs and the graph stays blank, download Cytoscape.js and place it at:
+
+```
+assets/vendor/cytoscape.min.js
+```
+
+The app will try the local file first, then fall back to public CDNs.
+
 ## Key Features
 - Left sidebar filters (node type + relationship), search, and export actions.
 - Cytoscape.js force-directed graph with custom icons and tooltips.
