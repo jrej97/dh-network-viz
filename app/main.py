@@ -284,15 +284,6 @@ async def main() -> None:
                         componentSpacing: 160,
                     }});
 
-                    const runLayout = () => {{
-                        if (!window.cy) return;
-                        const layout = window.cy.layout(buildLayout());
-                        layout.run();
-                        layout.on('layoutstop', () => {{
-                            window.cy.fit(undefined, 40);
-                        }});
-                    }};
-
                     const applyFiltersToGraph = (query, types, relationships) => {{
                         if (!window.cy) return;
                         const normalizedQuery = (query || '').toLowerCase();
@@ -376,10 +367,6 @@ async def main() -> None:
                             ],
                             layout: buildLayout(),
                         }});
-                        cy.ready(() => {{
-                            cy.resize();
-                            cy.fit(undefined, 40);
-                        }});
 
                         const tooltip = document.getElementById('cy-tooltip');
                         cy.on('mouseover', 'node', (event) => {{
@@ -438,7 +425,7 @@ async def main() -> None:
                         }}
                         window.cy.elements().remove();
                         window.cy.add(elements);
-                        runLayout();
+                        window.cy.layout(buildLayout()).run();
                     }};
 
                     window.applyFilters = (query, types, relationships) => {{
@@ -448,7 +435,6 @@ async def main() -> None:
                             return;
                         }}
                         applyFiltersToGraph(query, types, relationships);
-                        runLayout();
                     }};
 
                     window.resetFilters = () => {{
@@ -459,7 +445,6 @@ async def main() -> None:
                         }}
                         window.cy.nodes().style('display', 'element');
                         window.cy.edges().style('display', 'element');
-                        runLayout();
                     }};
 
                     initCytoscape();
