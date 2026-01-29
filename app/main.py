@@ -24,7 +24,21 @@ app.add_static_files("/assets", BASE_DIR / "assets")
 
 ui.add_head_html(
     """
-    <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+    <script>
+        window.cytoscapeLoad = new Promise((resolve, reject) => {
+            const primary = document.createElement('script');
+            primary.src = 'https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js';
+            primary.onload = () => resolve(true);
+            primary.onerror = () => {
+                const fallback = document.createElement('script');
+                fallback.src = 'https://cdn.jsdelivr.net/npm/cytoscape@3.26.0/dist/cytoscape.min.js';
+                fallback.onload = () => resolve(true);
+                fallback.onerror = () => reject(new Error('Unable to load Cytoscape.js'));
+                document.head.appendChild(fallback);
+            };
+            document.head.appendChild(primary);
+        });
+    </script>
     <style>
         :root {
             --surface: #ffffff;
@@ -39,7 +53,7 @@ ui.add_head_html(
             --danger: #dc2626;
         }
         body {
-            background: var(--surface-muted);
+            background: #1e3a8a;
             color: var(--text-primary);
         }
         .nicegui-content {
@@ -51,6 +65,12 @@ ui.add_head_html(
             border: 1px solid var(--border);
             border-radius: 12px;
             background: var(--surface-strong);
+        }
+        .ag-root-wrapper {
+            min-height: 320px;
+        }
+        .ag-center-cols-viewport {
+            min-height: 320px;
         }
         #cy-tooltip {
             position: absolute;
@@ -70,6 +90,11 @@ ui.add_head_html(
             padding: 18px;
             background: var(--surface);
             box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+        }
+        .ag-theme-balham,
+        .ag-theme-alpine {
+            background: var(--surface);
+            border-radius: 12px;
         }
         .inspector-card {
             border: 1px solid var(--border);
@@ -154,7 +179,8 @@ async def main() -> None:
     async def refresh_graph() -> None:
         elements = build_elements(state["nodes"], state["edges"])
         await ui.run_javascript(
-            "updateGraph(%s)" % json.dumps(elements)
+            "updateGraph(%s)" % json.dumps(elements),
+            respond=False,
         )
 
     async def collect_grid_data() -> tuple[list[dict], list[dict]]:
@@ -204,19 +230,20 @@ async def main() -> None:
 
     async def apply_filters() -> None:
         await ui.run_javascript(
-            "applyFilters(%s, %s, %s)"
+            "window.safeApplyFilters(%s, %s, %s)"
             % (
                 json.dumps(search_input.value),
                 json.dumps(type_filter.value),
                 json.dumps(relationship_filter.value),
-            )
+            ),
+            respond=False,
         )
 
     async def reset_filters() -> None:
         search_input.value = ""
         type_filter.value = []
         relationship_filter.value = []
-        await ui.run_javascript("resetFilters()")
+        await ui.run_javascript("window.safeResetFilters()", respond=False)
 
     async def set_grid_rows(grid, rows: list[dict]) -> None:
         await grid.call_api_method("setRowData", rows)
@@ -271,111 +298,39 @@ async def main() -> None:
             ui.add_body_html(
                 f"""
                 <script>
-                    const cy = window.cy = cytoscape({{
-                        container: document.getElementById('cy'),
-                        elements: {elements_json},
-                        style: [
-                            {{
-                                selector: 'node',
-                                style: {{
-                                    'shape': 'ellipse',
-                                    'background-color': '#ffffff',
-                                    'border-width': 1,
-                                    'border-color': '#a5b4fc',
-                                    'width': 56,
-                                    'height': 56,
-                                    'label': 'data(label)',
-                                    'text-valign': 'bottom',
-                                    'text-margin-y': 8,
-                                    'font-size': 11,
-                                    'color': '#0f172a',
-                                    'background-image': 'data(icon)',
-                                    'background-fit': 'contain',
-                                    'background-clip': 'none',
-                                    'background-opacity': 0,
-                                }}
-                            }},
-                            {{
-                                selector: 'edge',
-                                style: {{
-                                    'width': 1,
-                                    'line-color': '#c7d2fe',
-                                    'curve-style': 'straight',
-                                }}
-                            }}
-                        ],
-                        layout: {{
-                            name: 'cose',
-                            animate: false,
-                            nodeRepulsion: 6000,
-                            idealEdgeLength: 140,
-                            componentSpacing: 160,
-                        }},
+                    window.pendingElements = {elements_json};
+                    window.pendingFilters = null;
+
+                    const buildLayout = () => ({{
+                        name: 'cose',
+                        animate: false,
+                        nodeRepulsion: 6000,
+                        idealEdgeLength: 140,
+                        componentSpacing: 160,
                     }});
 
-                    const tooltip = document.getElementById('cy-tooltip');
-                    cy.on('mouseover', 'node', (event) => {{
-                        const node = event.target;
-                        const description = node.data('description');
-                        if (!description) return;
-                        tooltip.textContent = description;
-                        tooltip.style.display = 'block';
-                        tooltip.style.left = `${{event.renderedPosition.x + 12}}px`;
-                        tooltip.style.top = `${{event.renderedPosition.y + 12}}px`;
-                    }});
-                    cy.on('mouseout', 'node', () => {{
-                        tooltip.style.display = 'none';
-                    }});
-                    cy.on('mouseover', 'edge', (event) => {{
-                        const edge = event.target;
-                        const relationship = edge.data('relationship_type');
-                        const description = edge.data('description');
-                        if (!relationship && !description) return;
-                        tooltip.textContent = [relationship, description].filter(Boolean).join(': ');
-                        tooltip.style.display = 'block';
-                        tooltip.style.left = `${{event.renderedPosition.x + 12}}px`;
-                        tooltip.style.top = `${{event.renderedPosition.y + 12}}px`;
-                    }});
-                    cy.on('mouseout', 'edge', () => {{
-                        tooltip.style.display = 'none';
-                    }});
-                    cy.on('tap', 'node', (event) => {{
-                        const node = event.target;
-                        window.dispatchEvent(new CustomEvent('cy_selected', {{
-                            detail: {{ kind: 'node', data: node.data() }}
-                        }}));
-                    }});
-                    cy.on('tap', 'edge', (event) => {{
-                        const edge = event.target;
-                        window.dispatchEvent(new CustomEvent('cy_selected', {{
-                            detail: {{ kind: 'edge', data: edge.data() }}
-                        }}));
-                    }});
-
-                    window.updateGraph = (elements) => {{
-                        cy.elements().remove();
-                        cy.add(elements);
-                        cy.layout({{
-                            name: 'cose',
-                            animate: false,
-                            nodeRepulsion: 6000,
-                            idealEdgeLength: 140,
-                            componentSpacing: 160,
-                        }}).run();
+                    const runLayout = () => {{
+                        if (!window.cy) return;
+                        const layout = window.cy.layout(buildLayout());
+                        layout.run();
+                        layout.on('layoutstop', () => {{
+                            window.cy.fit(undefined, 40);
+                        }});
                     }};
 
-                    window.applyFilters = (query, types, relationships) => {{
+                    const applyFiltersToGraph = (query, types, relationships) => {{
+                        if (!window.cy) return;
                         const normalizedQuery = (query || '').toLowerCase();
                         const typeSet = new Set((types || []).map((value) => value.toLowerCase()));
                         const relationSet = new Set((relationships || []).map((value) => value.toLowerCase()));
-                        cy.nodes().forEach((node) => {{
+                        window.cy.nodes().forEach((node) => {{
                             const label = (node.data('label') || '').toLowerCase();
                             const nodeType = (node.data('type') || '').toLowerCase();
                             const matchesQuery = label.includes(normalizedQuery);
                             const matchesType = typeSet.size === 0 || typeSet.has(nodeType);
                             node.style('display', matchesQuery && matchesType ? 'element' : 'none');
                         }});
-                        cy.edges().forEach((edge) => {{
+                        window.cy.edges().forEach((edge) => {{
                             const sourceVisible = edge.source().style('display') !== 'none';
                             const targetVisible = edge.target().style('display') !== 'none';
                             const relationship = (edge.data('relationship_type') || '').toLowerCase();
@@ -387,7 +342,7 @@ async def main() -> None:
                             );
                         }});
                         if (relationSet.size > 0) {{
-                            cy.nodes().forEach((node) => {{
+                            window.cy.nodes().forEach((node) => {{
                                 const connectedVisible =
                                     node.connectedEdges().filter(
                                         (edge) => edge.style('display') !== 'none'
@@ -396,13 +351,172 @@ async def main() -> None:
                                     node.style('display', 'none');
                                 }}
                             }});
+                        }}
+                    }};
+
+                    const initCytoscape = () => {{
+                        if (window.cy) return;
+                        if (window.cytoscapeLoad && !window.cytoscapeLoadHandled) {{
+                            window.cytoscapeLoadHandled = true;
+                            window.cytoscapeLoad.catch(() => {{
+                                const fallbackContainer = document.getElementById('cy');
+                                if (fallbackContainer) {{
+                                    fallbackContainer.innerHTML = `
+                                        <div style="padding: 16px; text-align: center; color: #b91c1c;">
+                                            Unable to load Cytoscape.js. Check network access or allow the CDN.
+                                        </div>
+                                    `;
+                                }}
+                            }});
+                        }}
+                        if (typeof cytoscape === 'undefined') {{
+                            setTimeout(initCytoscape, 50);
+                            return;
+                        }}
+                        const container = document.getElementById('cy');
+                        if (!container) {{
+                            setTimeout(initCytoscape, 50);
+                            return;
+                        }}
+
+                        const cy = window.cy = cytoscape({{
+                            container,
+                            elements: window.pendingElements || [],
+                            style: [
+                                {{
+                                    selector: 'node',
+                                    style: {{
+                                        'shape': 'ellipse',
+                                        'background-color': '#ffffff',
+                                        'border-width': 1,
+                                        'border-color': '#a5b4fc',
+                                        'width': 56,
+                                        'height': 56,
+                                        'label': 'data(label)',
+                                        'text-valign': 'bottom',
+                                        'text-margin-y': 8,
+                                        'font-size': 11,
+                                        'color': '#0f172a',
+                                        'background-image': 'data(icon)',
+                                        'background-fit': 'contain',
+                                        'background-clip': 'none',
+                                        'background-opacity': 0,
+                                    }}
+                                }},
+                                {{
+                                    selector: 'edge',
+                                    style: {{
+                                        'width': 1,
+                                        'line-color': '#c7d2fe',
+                                        'curve-style': 'straight',
+                                    }}
+                                }}
+                            ],
+                            layout: buildLayout(),
                         }});
+                        cy.ready(() => {{
+                            cy.resize();
+                            cy.fit(undefined, 40);
+                        }});
+
+                        const tooltip = document.getElementById('cy-tooltip');
+                        cy.on('mouseover', 'node', (event) => {{
+                            const node = event.target;
+                            const description = node.data('description');
+                            if (!description) return;
+                            tooltip.textContent = description;
+                            tooltip.style.display = 'block';
+                            tooltip.style.left = `${{event.renderedPosition.x + 12}}px`;
+                            tooltip.style.top = `${{event.renderedPosition.y + 12}}px`;
+                        }});
+                        cy.on('mouseout', 'node', () => {{
+                            tooltip.style.display = 'none';
+                        }});
+                        cy.on('mouseover', 'edge', (event) => {{
+                            const edge = event.target;
+                            const relationship = edge.data('relationship_type');
+                            const description = edge.data('description');
+                            if (!relationship && !description) return;
+                            tooltip.textContent = [relationship, description].filter(Boolean).join(': ');
+                            tooltip.style.display = 'block';
+                            tooltip.style.left = `${{event.renderedPosition.x + 12}}px`;
+                            tooltip.style.top = `${{event.renderedPosition.y + 12}}px`;
+                        }});
+                        cy.on('mouseout', 'edge', () => {{
+                            tooltip.style.display = 'none';
+                        }});
+                        cy.on('tap', 'node', (event) => {{
+                            const node = event.target;
+                            window.dispatchEvent(new CustomEvent('cy_selected', {{
+                                detail: {{ kind: 'node', data: node.data() }}
+                            }}));
+                        }});
+                        cy.on('tap', 'edge', (event) => {{
+                            const edge = event.target;
+                            window.dispatchEvent(new CustomEvent('cy_selected', {{
+                                detail: {{ kind: 'edge', data: edge.data() }}
+                            }}));
+                        }});
+
+                        if (window.pendingFilters) {{
+                            applyFiltersToGraph(
+                                window.pendingFilters.query,
+                                window.pendingFilters.types,
+                                window.pendingFilters.relationships
+                            );
+                            window.pendingFilters = null;
+                        }}
+                    }};
+
+                    window.updateGraph = (elements) => {{
+                        window.pendingElements = elements;
+                        if (!window.cy) {{
+                            initCytoscape();
+                            return;
+                        }}
+                        window.cy.elements().remove();
+                        window.cy.add(elements);
+                        runLayout();
+                    }};
+
+                    window.applyFilters = (query, types, relationships) => {{
+                        if (!window.cy) {{
+                            window.pendingFilters = {{ query, types, relationships }};
+                            initCytoscape();
+                            return;
+                        }}
+                        applyFiltersToGraph(query, types, relationships);
+                        runLayout();
                     }};
 
                     window.resetFilters = () => {{
-                        cy.nodes().style('display', 'element');
-                        cy.edges().style('display', 'element');
+                        if (!window.cy) {{
+                            window.pendingFilters = {{ query: '', types: [], relationships: [] }};
+                            initCytoscape();
+                            return;
+                        }}
+                        window.cy.nodes().style('display', 'element');
+                        window.cy.edges().style('display', 'element');
+                        runLayout();
                     }};
+
+                    window.safeApplyFilters = (query, types, relationships) => {{
+                        if (typeof window.applyFilters !== 'function') {{
+                            console.error('applyFilters is not ready yet.');
+                            return;
+                        }}
+                        window.applyFilters(query, types, relationships);
+                    }};
+
+                    window.safeResetFilters = () => {{
+                        if (typeof window.resetFilters !== 'function') {{
+                            console.error('resetFilters is not ready yet.');
+                            return;
+                        }}
+                        window.resetFilters();
+                    }};
+
+                    initCytoscape();
                 </script>
                 """
             )
@@ -430,7 +544,7 @@ async def main() -> None:
                         "defaultColDef": {"flex": 1, "resizable": True},
                         "stopEditingWhenCellsLoseFocus": True,
                     }
-                ).classes("w-full h-64")
+                ).classes("w-full h-96")
 
             with ui.expansion("Edit Edges", icon="edit"):
                 edges_grid = ui.aggrid(
@@ -440,7 +554,7 @@ async def main() -> None:
                         "defaultColDef": {"flex": 1, "resizable": True},
                         "stopEditingWhenCellsLoseFocus": True,
                     }
-                ).classes("w-full h-64")
+                ).classes("w-full h-96")
 
         with ui.column().classes("w-1/5 gap-4"):
             ui.label("Inspector").classes("text-lg font-semibold panel-title")
