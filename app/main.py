@@ -65,6 +65,25 @@ ui.add_head_html(
             border: 1px solid var(--border);
             border-radius: 12px;
             background: var(--surface-strong);
+            position: relative;
+        }
+        #cy-status {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: var(--text-muted);
+            background: rgba(248, 250, 252, 0.85);
+            border-radius: 12px;
+            z-index: 5;
+        }
+        .ag-root-wrapper {
+            min-height: 320px;
+        }
+        .ag-center-cols-viewport {
+            min-height: 320px;
         }
         .ag-root-wrapper {
             min-height: 320px;
@@ -290,6 +309,7 @@ async def main() -> None:
                 """
                 <div style="position: relative;">
                     <div id="cy"></div>
+                    <div id="cy-status">Loading graph…</div>
                     <div id="cy-tooltip"></div>
                 </div>
                 """
