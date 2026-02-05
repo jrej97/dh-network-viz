@@ -41,30 +41,49 @@ ui.add_head_html(
     </script>
     <style>
         :root {
-            --surface: #ffffff;
-            --surface-muted: #f8fafc;
-            --surface-strong: #eef2ff;
-            --border: #e2e8f0;
-            --text-primary: #0f172a;
-            --text-muted: #64748b;
-            --accent: #4f46e5;
-            --accent-strong: #4338ca;
-            --success: #16a34a;
-            --danger: #dc2626;
+            --surface: #0f172a;
+            --surface-muted: #111827;
+            --surface-strong: #0b1220;
+            --border: #1f2937;
+            --text-primary: #e5e7eb;
+            --text-muted: #9ca3af;
+            --accent: #38bdf8;
+            --accent-strong: #0284c7;
+            --success: #22c55e;
+            --danger: #f97316;
         }
         body {
-            background: #1e3a8a;
+            background: #0b111b;
             color: var(--text-primary);
         }
         .nicegui-content {
-            padding: 24px 28px;
+            padding: 20px 24px 32px;
+        }
+        .app-shell {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .top-bar {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px 18px;
+            box-shadow: 0 16px 32px rgba(2, 6, 23, 0.5);
+        }
+        .top-pill {
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            color: var(--accent);
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            letter-spacing: 0.02em;
         }
         #cy {
             width: 100%;
             height: 640px;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            background: var(--surface-strong);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 18px;
+            background: radial-gradient(circle at 20% 20%, #0f172a 0%, #0b1220 45%, #060b15 100%);
             position: relative;
         }
         #cy-status {
@@ -75,26 +94,14 @@ ui.add_head_html(
             justify-content: center;
             font-size: 14px;
             color: var(--text-muted);
-            background: rgba(248, 250, 252, 0.85);
-            border-radius: 12px;
+            background: rgba(5, 8, 16, 0.7);
+            border-radius: 18px;
             z-index: 5;
-        }
-        .ag-root-wrapper {
-            min-height: 320px;
-        }
-        .ag-center-cols-viewport {
-            min-height: 320px;
-        }
-        .ag-root-wrapper {
-            min-height: 320px;
-        }
-        .ag-center-cols-viewport {
-            min-height: 320px;
         }
         #cy-tooltip {
             position: absolute;
-            background: rgba(15, 23, 42, 0.92);
-            color: white;
+            background: rgba(2, 6, 23, 0.92);
+            color: #e2e8f0;
             padding: 6px 10px;
             border-radius: 6px;
             font-size: 12px;
@@ -103,24 +110,18 @@ ui.add_head_html(
             max-width: 240px;
             z-index: 10;
         }
-        .sidebar-section {
+        .panel-card {
             border: 1px solid var(--border);
-            border-radius: 16px;
+            border-radius: 18px;
             padding: 18px;
-            background: var(--surface);
-            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+            background: rgba(15, 23, 42, 0.92);
+            box-shadow: 0 14px 32px rgba(2, 6, 23, 0.6);
         }
         .ag-theme-balham,
         .ag-theme-alpine {
-            background: var(--surface);
+            background: rgba(15, 23, 42, 0.92);
             border-radius: 12px;
-        }
-        .inspector-card {
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 18px;
-            background: var(--surface);
-            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+            color: var(--text-primary);
         }
         .panel-title {
             color: var(--text-primary);
@@ -131,12 +132,18 @@ ui.add_head_html(
         }
         .q-field__control {
             border-radius: 12px;
-            background: var(--surface-muted);
-            border: 1px solid transparent;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: var(--text-primary);
         }
         .q-field--focused .q-field__control {
             border-color: var(--accent);
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        .q-field__native,
+        .q-field__input,
+        .q-field__label {
+            color: var(--text-primary);
         }
         .q-btn {
             border-radius: 12px;
@@ -146,14 +153,14 @@ ui.add_head_html(
         }
         .q-btn.q-btn--outline {
             color: var(--accent);
-            border-color: rgba(79, 70, 229, 0.5);
+            border-color: rgba(56, 189, 248, 0.6);
         }
         .q-btn.q-btn--outline:hover {
             border-color: var(--accent-strong);
         }
         .q-btn:not(.q-btn--outline) {
             background: var(--accent);
-            color: white;
+            color: #0b111b;
         }
         .q-btn:not(.q-btn--outline):hover {
             background: var(--accent-strong);
@@ -161,14 +168,18 @@ ui.add_head_html(
         .q-btn.bg-negative,
         .q-btn.text-negative {
             background: var(--danger);
-            color: white;
+            color: #0b111b;
         }
         .q-btn.bg-negative:hover,
         .q-btn.text-negative:hover {
-            background: #b91c1c;
+            background: #ea580c;
         }
         .q-separator {
             background: var(--border);
+        }
+        .ag-root-wrapper,
+        .ag-center-cols-viewport {
+            min-height: 320px;
         }
     </style>
     """
@@ -269,51 +280,63 @@ async def main() -> None:
 
     current_selection: dict[str, dict] = {}
 
-    with ui.row().classes("w-full gap-6"):
-        with ui.column().classes("w-1/5 gap-4"):
-            ui.label("Filters & Export").classes("text-lg font-semibold panel-title")
-            ui.label("Shape what you see and export ready files.").classes(
-                "text-sm panel-subtitle"
-            )
-            with ui.column().classes("sidebar-section gap-4"):
-                search_input = ui.input("Search nodes")
-                type_filter = ui.select(
-                    ["Person", "Place", "Institution", "Group"],
-                    label="Filter by type",
-                    multiple=True,
+    with ui.column().classes("w-full gap-6 app-shell"):
+        with ui.row().classes("w-full items-center justify-between top-bar"):
+            with ui.column().classes("gap-1"):
+                ui.label("Gephi Lite — Network Studio").classes("text-lg font-semibold")
+                ui.label("Interactive graph editing inspired by lite.gephi.org").classes(
+                    "text-xs panel-subtitle"
                 )
-                relationship_filter = ui.select(
-                    sorted(
-                        {
-                            value
-                            for value in state["edges"]["relationship_type"].astype(str).tolist()
-                            if value
-                        }
-                    ),
-                    label="Filter by relationship",
-                    multiple=True,
-                )
-                ui.button("Apply Filters", on_click=apply_filters)
-                ui.button("Reset Filters", on_click=reset_filters).props("outline")
-                ui.separator()
-                ui.button("Save to Excel", on_click=on_save)
-                ui.button("Export CSV + GEXF", on_click=on_export).props("outline")
+            with ui.row().classes("items-center gap-2"):
+                ui.label("Live").classes("top-pill")
+                ui.label("Cytoscape.js").classes("top-pill")
+                ui.label("NiceGUI").classes("top-pill")
 
-        with ui.column().classes("w-3/5 gap-4"):
-            ui.label("Crime Network Graph").classes("text-lg font-semibold panel-title")
-            ui.label("Explore relationships in a cleaner, calmer layout.").classes(
-                "text-sm panel-subtitle"
-            )
-            elements = build_elements(state["nodes"], state["edges"])
-            ui.html(
-                """
-                <div style="position: relative;">
-                    <div id="cy"></div>
-                    <div id="cy-status">Loading graph…</div>
-                    <div id="cy-tooltip"></div>
-                </div>
-                """
-            )
+        with ui.row().classes("w-full gap-6"):
+            with ui.column().classes("w-1/4 gap-4"):
+                ui.label("Filters & Export").classes("text-lg font-semibold panel-title")
+                ui.label("Curate the graph view and output files.").classes(
+                    "text-sm panel-subtitle"
+                )
+                with ui.column().classes("panel-card gap-4"):
+                    search_input = ui.input("Search nodes")
+                    type_filter = ui.select(
+                        ["Person", "Place", "Institution", "Group"],
+                        label="Filter by type",
+                        multiple=True,
+                    )
+                    relationship_filter = ui.select(
+                        sorted(
+                            {
+                                value
+                                for value in state["edges"]["relationship_type"].astype(str).tolist()
+                                if value
+                            }
+                        ),
+                        label="Filter by relationship",
+                        multiple=True,
+                    )
+                    ui.button("Apply Filters", on_click=apply_filters)
+                    ui.button("Reset Filters", on_click=reset_filters).props("outline")
+                    ui.separator()
+                    ui.button("Save to Excel", on_click=on_save)
+                    ui.button("Export CSV + GEXF", on_click=on_export).props("outline")
+
+            with ui.column().classes("w-1/2 gap-4"):
+                ui.label("Graph View").classes("text-lg font-semibold panel-title")
+                ui.label("Zoom, pan, and select nodes to inspect metadata.").classes(
+                    "text-sm panel-subtitle"
+                )
+                elements = build_elements(state["nodes"], state["edges"])
+                ui.html(
+                    """
+                    <div style="position: relative;">
+                        <div id="cy"></div>
+                        <div id="cy-status">Loading graph…</div>
+                        <div id="cy-tooltip"></div>
+                    </div>
+                    """
+                )
             elements_json = json.dumps(elements)
             ui.add_body_html(
                 f"""
@@ -385,16 +408,16 @@ async def main() -> None:
                                     selector: 'node',
                                     style: {{
                                         'shape': 'ellipse',
-                                        'background-color': '#ffffff',
-                                        'border-width': 1,
-                                        'border-color': '#a5b4fc',
-                                        'width': 56,
-                                        'height': 56,
+                                        'background-color': '#0f172a',
+                                        'border-width': 1.5,
+                                        'border-color': '#38bdf8',
+                                        'width': 52,
+                                        'height': 52,
                                         'label': 'data(label)',
                                         'text-valign': 'bottom',
                                         'text-margin-y': 8,
                                         'font-size': 11,
-                                        'color': '#0f172a',
+                                        'color': '#e2e8f0',
                                         'background-image': 'data(icon)',
                                         'background-fit': 'contain',
                                         'background-clip': 'none',
@@ -404,8 +427,8 @@ async def main() -> None:
                                 {{
                                     selector: 'edge',
                                     style: {{
-                                        'width': 1,
-                                        'line-color': '#c7d2fe',
+                                        'width': 1.2,
+                                        'line-color': '#334155',
                                         'curve-style': 'straight',
                                     }}
                                 }}
@@ -532,16 +555,18 @@ async def main() -> None:
                     }
                 ).classes("w-full h-96")
 
-        with ui.column().classes("w-1/5 gap-4"):
-            ui.label("Inspector").classes("text-lg font-semibold panel-title")
-            ui.label("Quickly review or edit selections.").classes("text-sm panel-subtitle")
-            with ui.column().classes("inspector-card gap-2"):
-                inspector_title = ui.label("Select a node or edge")
-                inspector_type = ui.label("Type: -")
-                inspector_meta = ui.label("Details: -")
-                with ui.row().classes("gap-2"):
-                    edit_button = ui.button("Edit").props("outline")
-                    delete_button = ui.button("Delete").props("outline color=negative")
+            with ui.column().classes("w-1/4 gap-4"):
+                ui.label("Inspector").classes("text-lg font-semibold panel-title")
+                ui.label("Select nodes or edges to inspect and edit.").classes(
+                    "text-sm panel-subtitle"
+                )
+                with ui.column().classes("panel-card gap-2"):
+                    inspector_title = ui.label("Select a node or edge")
+                    inspector_type = ui.label("Type: -")
+                    inspector_meta = ui.label("Details: -")
+                    with ui.row().classes("gap-2"):
+                        edit_button = ui.button("Edit").props("outline")
+                        delete_button = ui.button("Delete").props("outline color=negative")
 
     def handle_selection(event) -> None:
         detail = event.args
